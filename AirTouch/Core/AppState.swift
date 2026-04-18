@@ -29,7 +29,6 @@ final class AppState {
 
     // Pipeline tasks
     private var fpsCounterTask: Task<Void, Never>?
-    private var accessibilityPollingTask: Task<Void, Never>?
     private var frameCount = 0
 
     // MARK: - Menu Bar Icon
@@ -53,20 +52,30 @@ final class AppState {
 
     // MARK: - Initialization
 
+    private var hasInitialized = false
+
     func initialize() {
-        permissionManager.checkCamera()
-        permissionManager.checkAccessibility()
+        guard !hasInitialized else { return }
+        hasInitialized = true
 
-        // Poll accessibility status — the user may grant it after launch
-        accessibilityPollingTask = permissionManager.startPollingAccessibility()
-
-        // Load calibration if available
+        // Load calibration and sync settings — fast UserDefaults reads only.
         if let calibData = settings.calibrationData {
             cursorController.calibrationTransform = CalibrationTransform(matrix: calibData.matrix)
         }
-
-        // Sync settings to controllers
         syncSettings()
+    }
+
+    /// Called from a background thread by the app delegate. Checks permissions
+    /// off the main thread, then hops to main to update the @Observable properties.
+    /// Uses CGPreflightPostEventAccess instead of AXIsProcessTrusted to avoid
+    /// Mach port exceptions on macOS 26.
+    nonisolated func refreshPermissionsInBackground() {
+        let cam = AVCaptureDevice.authorizationStatus(for: .video)
+        let ax = CGPreflightPostEventAccess()
+        DispatchQueue.main.async { [self] in
+            permissionManager.cameraStatus = cam
+            permissionManager.accessibilityGranted = ax
+        }
     }
 
     // MARK: - Toggle Tracking
@@ -85,9 +94,7 @@ final class AppState {
         guard permissionManager.isCameraAuthorized else { return }
         guard !isTracking else { return }
 
-        // Re-check accessibility right before starting
-        permissionManager.checkAccessibility()
-        logger.info("Starting pipeline — AXTrusted=\(AXIsProcessTrusted()) accessibilityGranted=\(self.permissionManager.accessibilityGranted)")
+        logger.info("Starting pipeline — accessibilityGranted=\(self.permissionManager.accessibilityGranted)")
 
         syncSettings()
         isTracking = true
@@ -109,7 +116,7 @@ final class AppState {
         // queued and hasn't started processing yet — skip further dispatches.
         let processingFlag = AtomicFlag()
 
-        cameraManager.frameHandler.handler = { sampleBuffer in
+        cameraManager.onFrame = { sampleBuffer in
             autoreleasepool {
                 let timestamp = CACurrentMediaTime()
                 let frame = engine.processFrame(sampleBuffer, timestamp: timestamp)
@@ -139,20 +146,12 @@ final class AppState {
 
                         let events = self.gestureRecognizer.processFrame(latestFrame, settings: self.settings)
 
-                        let hasCursorMove = events.contains { if case .cursorMove = $0.type { return true } else { return false } }
-                        if !hasCursorMove {
-                            self.cursorController.resetCursorAnchor()
-                        }
-
                         for event in events {
                             self.handleGestureEvent(event)
                         }
                     } else {
                         self.handsDetected = 0
                         self.currentFrame = nil
-                        if !self.isCalibrating {
-                            self.cursorController.resetCursorAnchor()
-                        }
                     }
                 }
             }
@@ -179,7 +178,7 @@ final class AppState {
 
     private func handleGestureEvent(_ event: GestureEvent) {
         guard permissionManager.accessibilityGranted else {
-            logger.warning("Event dropped — accessibility not granted (AXIsProcessTrusted=\(AXIsProcessTrusted()))")
+            logger.warning("Event dropped — accessibility not granted")
             return
         }
 
@@ -220,6 +219,9 @@ final class AppState {
 
         case .perfectSignStart, .perfectSignEnd:
             break // scroll events come through scrollVertical/scrollHorizontal
+
+        case .openPalmRightClick:
+            cursorController.rightClick()
         }
     }
 

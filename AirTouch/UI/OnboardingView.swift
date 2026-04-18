@@ -4,7 +4,6 @@ struct OnboardingView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var currentStep = 0
-    @State private var accessibilityPollTask: Task<Void, Never>?
 
     private var allPermissionsGranted: Bool {
         appState.permissionManager.isCameraAuthorized && appState.permissionManager.accessibilityGranted
@@ -69,21 +68,6 @@ struct OnboardingView: View {
             .padding()
         }
         .frame(width: 500, height: 400)
-        .onAppear {
-            appState.permissionManager.checkCamera()
-            appState.permissionManager.checkAccessibility()
-            // Poll accessibility every second so the UI updates after the user grants it
-            accessibilityPollTask = Task { @MainActor in
-                while !Task.isCancelled {
-                    appState.permissionManager.checkAccessibility()
-                    try? await Task.sleep(for: .seconds(1))
-                }
-            }
-        }
-        .onDisappear {
-            accessibilityPollTask?.cancel()
-            accessibilityPollTask = nil
-        }
     }
 
     // MARK: - Welcome Step
@@ -139,8 +123,6 @@ struct OnboardingView: View {
                 Button("Grant Camera Access") {
                     Task {
                         await appState.permissionManager.requestCamera()
-                        // Re-activate after the system dialog dismisses
-                        NSApp.activate(ignoringOtherApps: true)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -178,12 +160,13 @@ struct OnboardingView: View {
 
             if !appState.permissionManager.accessibilityGranted {
                 VStack(spacing: 12) {
-                    Button("Open System Settings") {
+                    Button("Grant Accessibility Access") {
+                        appState.permissionManager.promptAccessibility()
                         appState.permissionManager.openAccessibilitySettings()
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Text("Add AirTouch in System Settings → Privacy & Security → Accessibility")
+                    Text("System Settings will open. Click + to add AirTouch, or find it in the list and enable it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -198,66 +181,96 @@ struct OnboardingView: View {
     // MARK: - Complete Step
 
     private var completeStep: some View {
-        VStack(spacing: 20) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: 20) {
+                if allPermissionsGranted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(.green)
+                    Text("You're All Set!")
+                        .font(.title)
+                        .fontWeight(.bold)
+                } else {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(.orange)
+                    Text("Permissions Required")
+                        .font(.title)
+                        .fontWeight(.bold)
 
-            if allPermissionsGranted {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 10) {
+                        PermissionCheckRow(
+                            label: "Camera Access",
+                            granted: appState.permissionManager.isCameraAuthorized
+                        )
+                        PermissionCheckRow(
+                            label: "Accessibility Access",
+                            granted: appState.permissionManager.accessibilityGranted
+                        )
+                    }
+                    .padding()
+                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
 
-                Text("You're All Set!")
-                    .font(.title)
-                    .fontWeight(.bold)
-            } else {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.orange)
+                    Text("Go back and grant the required permissions before continuing.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
 
-                Text("Permissions Required")
-                    .font(.title)
-                    .fontWeight(.bold)
-            }
+                // Gesture reference — always shown
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Gesture Reference")
+                        .font(.headline)
+                        .padding(.bottom, 10)
 
-            // Dynamic permission checklist
-            VStack(alignment: .leading, spacing: 10) {
-                PermissionCheckRow(
-                    label: "Camera Access",
-                    granted: appState.permissionManager.isCameraAuthorized
-                )
-                PermissionCheckRow(
-                    label: "Accessibility Access",
-                    granted: appState.permissionManager.accessibilityGranted
-                )
+                    GestureReferenceRow(
+                        icon: "cursorarrow.rays",
+                        title: "Cursor",
+                        detail: "Extend only your index finger. The cursor follows your fingertip. Other fingers must be curled."
+                    )
+                    Divider().padding(.vertical, 8)
+                    GestureReferenceRow(
+                        icon: "hand.pinch",
+                        title: "Left Click",
+                        detail: "Pinch thumb + index finger together. Release to click. Cursor freezes near the click point."
+                    )
+                    Divider().padding(.vertical, 8)
+                    GestureReferenceRow(
+                        icon: "hand.pinch.fill",
+                        title: "Right Click (pinch)",
+                        detail: "Pinch thumb + middle finger together. Index should remain curled."
+                    )
+                    Divider().padding(.vertical, 8)
+                    GestureReferenceRow(
+                        icon: "hand.raised.fingers.spread",
+                        title: "Right Click (palm)",
+                        detail: "Open all five fingers fully and hold for 1 second. Cursor stays frozen during the hold."
+                    )
+                    Divider().padding(.vertical, 8)
+                    GestureReferenceRow(
+                        icon: "scroll",
+                        title: "Scroll",
+                        detail: "Make a 👌 sign (pinch thumb + index, keep middle/ring/little extended). Move your middle fingertip up/down to scroll. Cursor does not move."
+                    )
+                    Divider().padding(.vertical, 8)
+                    GestureReferenceRow(
+                        icon: "hand.draw",
+                        title: "Drag",
+                        detail: "Pinch thumb + index and hold for 0.8s without releasing. Then move your hand to drag. Release pinch to drop."
+                    )
+                }
+                .padding()
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+
+                if allPermissionsGranted {
+                    Text("Click the hand icon in the menu bar to start tracking.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             }
             .padding()
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-            .frame(maxWidth: 300)
-
-            if allPermissionsGranted {
-                VStack(alignment: .leading, spacing: 12) {
-                    FeatureRow(icon: "hand.point.up.left", text: "Move cursor with your index finger")
-                    FeatureRow(icon: "hand.tap", text: "Pinch thumb + index to left click")
-                    FeatureRow(icon: "hand.tap", text: "Pinch thumb + middle to right click")
-                    FeatureRow(icon: "hand.raised", text: "Open palm + move wrist to scroll")
-                }
-                .frame(maxWidth: 300)
-
-                Text("Click the hand icon in the menu bar to start tracking.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            } else {
-                Text("Please go back and grant the required permissions before continuing.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 350)
-            }
-
-            Spacer()
         }
-        .padding()
     }
 
     // MARK: - Helpers
@@ -306,6 +319,32 @@ private struct FeatureRow: View {
                 .foregroundStyle(.blue)
             Text(text)
                 .font(.callout)
+        }
+    }
+}
+
+// MARK: - Gesture Reference Row
+
+private struct GestureReferenceRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(.blue)
+                .frame(width: 28, alignment: .center)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .fontWeight(.semibold)
+                    .font(.callout)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

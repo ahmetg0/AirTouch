@@ -43,22 +43,29 @@ struct ControlsSettingsView: View {
                 }
             }
 
-            Section("Pinch Sensitivity") {
+            Section("Pinch") {
                 Slider(value: $settings.pinchThreshold, in: 0.01...0.12, step: 0.005) {
-                    Text("Pinch Threshold")
+                    Text("Pinch Threshold  \(settings.pinchThreshold, specifier: "%.3f")")
                 } minimumValueLabel: {
                     Text("Tight").font(.caption2)
                 } maximumValueLabel: {
                     Text("Loose").font(.caption2)
                 }
+            }
 
-                Slider(value: $settings.dragHoldDuration, in: 0.1...1.5, step: 0.1) {
-                    Text("Drag Hold Duration")
+            Section("Drag") {
+                Slider(value: $settings.dragHoldDuration, in: 0.1...2.0, step: 0.1) {
+                    Text("Hold Duration  \(settings.dragHoldDuration, specifier: "%.1f")s")
                 } minimumValueLabel: {
                     Text("0.1s").font(.caption2)
                 } maximumValueLabel: {
-                    Text("1.5s").font(.caption2)
+                    Text("2.0s").font(.caption2)
                 }
+            }
+
+            Section("Open Palm Right-Click") {
+                LabeledContent("Hold Duration", value: "1.0s (fixed)")
+                    .foregroundStyle(.secondary)
             }
 
             Section("Scroll") {

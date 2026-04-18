@@ -7,28 +7,11 @@ import AppKit
 final class CursorController: @unchecked Sendable {
     private(set) var lastCursorPosition: CGPoint = .zero
     private(set) var isDragging = false
-    private(set) var accessibilityGranted = false
 
     var cursorSpeed: Double = 1.0
     var scrollSpeed: Double = 1.0
     var sensitivity: Double = 1.0
     var calibrationTransform: CalibrationTransform?
-
-    // MARK: - Accessibility
-
-    /// Check (and optionally prompt for) Accessibility permission
-    func checkAccessibility(prompt: Bool = false) -> Bool {
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): prompt]
-        let granted = AXIsProcessTrustedWithOptions(options)
-        accessibilityGranted = granted
-        return granted
-    }
-
-    /// Open System Settings to the Accessibility pane
-    func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
-    }
 
     // MARK: - Coordinate Mapping
 
@@ -45,7 +28,6 @@ final class CursorController: @unchecked Sendable {
             return transform.apply(to: flippedPoint)
         }
 
-        // Default: simple linear mapping with sensitivity
         let transform = CalibrationTransform.simpleLinearMapping(
             screenWidth: screenFrame.width,
             screenHeight: screenFrame.height,

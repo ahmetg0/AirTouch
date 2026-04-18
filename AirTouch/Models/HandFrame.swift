@@ -40,6 +40,27 @@ struct HandData: Sendable {
     var littleMCP: LandmarkPoint? { landmarks[.littleMCP] }
     var thumbIP: LandmarkPoint? { landmarks[.thumbIP] }
 
+    // Per-finger extension/curl helpers used by GestureRecognizer
+    var isIndexExtended: Bool {
+        guard let wristPt = wrist, let tip = indexTip, let mcp = indexMCP else { return false }
+        return tip.distance(to: wristPt) > mcp.distance(to: wristPt)
+    }
+    var isMiddleExtended: Bool {
+        guard let wristPt = wrist, let tip = middleTip, let mcp = middleMCP else { return false }
+        return tip.distance(to: wristPt) > mcp.distance(to: wristPt)
+    }
+    var isRingExtended: Bool {
+        guard let wristPt = wrist, let tip = ringTip, let mcp = ringMCP else { return false }
+        return tip.distance(to: wristPt) > mcp.distance(to: wristPt)
+    }
+    var isLittleExtended: Bool {
+        guard let wristPt = wrist, let tip = littleTip, let mcp = littleMCP else { return false }
+        return tip.distance(to: wristPt) > mcp.distance(to: wristPt)
+    }
+    var isMiddleCurled: Bool { !isMiddleExtended }
+    var isRingCurled: Bool { !isRingExtended }
+    var isLittleCurled: Bool { !isLittleExtended }
+
     /// Check if all fingers are extended (open palm)
     var isOpenPalm: Bool {
         guard let wristPt = wrist,
@@ -77,7 +98,7 @@ enum JointID: String, Sendable, Codable, CaseIterable, Hashable {
     case ringMCP, ringPIP, ringDIP, ringTip
     case littleMCP, littlePIP, littleDIP, littleTip
 
-    var visionJointName: VNHumanHandPoseObservation.JointName {
+    nonisolated var visionJointName: VNHumanHandPoseObservation.JointName {
         switch self {
         case .wrist: return .wrist
         case .thumbCMC: return .thumbCMC
@@ -126,7 +147,7 @@ struct HandFrame: Sendable {
 
 // MARK: - Landmark Snapshot (for gesture recording)
 
-struct LandmarkSnapshot: Sendable, Codable {
+struct LandmarkSnapshot: Sendable, Codable, Hashable {
     let joints: [JointID: LandmarkPoint]
     let timestamp: TimeInterval
 

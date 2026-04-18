@@ -2,22 +2,41 @@ import SwiftUI
 
 struct CameraPreviewView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    private let previewWidth: CGFloat = 640
+    private let previewHeight: CGFloat = 480
 
     var body: some View {
         VStack(spacing: 0) {
+            // Toolbar with close button
+            HStack {
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(8)
+            }
+            .background(.black)
+
             // Camera feed with landmark overlay
             ZStack(alignment: .bottom) {
                 if appState.cameraManager.isRunning {
                     CameraFeedLayer(session: appState.cameraManager.currentSession)
-                        .frame(width: 320, height: 240)
+                        .frame(width: previewWidth, height: previewHeight)
 
                     if let frame = appState.currentFrame {
-                        LandmarkOverlay(frame: frame, size: CGSize(width: 320, height: 240))
+                        LandmarkOverlay(frame: frame, size: CGSize(width: previewWidth, height: previewHeight))
                     }
                 } else {
                     Rectangle()
                         .fill(.black)
-                        .frame(width: 320, height: 240)
+                        .frame(width: previewWidth, height: previewHeight)
                         .overlay {
                             VStack(spacing: 8) {
                                 Image(systemName: "camera.fill")
@@ -32,7 +51,6 @@ struct CameraPreviewView: View {
 
                 // Bottom status bar
                 HStack {
-                    // Active gesture indicator
                     if let gestureName = appState.gestureRecognizer.activeGestureName {
                         Text(gestureName)
                             .font(.caption)
@@ -45,7 +63,6 @@ struct CameraPreviewView: View {
 
                     Spacer()
 
-                    // FPS and hand count
                     Text("\(appState.framesPerSecond) fps")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.8))
@@ -63,7 +80,7 @@ struct CameraPreviewView: View {
                 .padding(.vertical, 4)
                 .background(.black.opacity(0.5))
             }
-            .frame(width: 320, height: 240)
+            .frame(width: previewWidth, height: previewHeight)
         }
         .background(.black)
     }

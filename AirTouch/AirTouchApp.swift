@@ -1,7 +1,34 @@
 import SwiftUI
 
+// MARK: - App Delegate
+
+final class AirTouchAppDelegate: NSObject, NSApplicationDelegate {
+    var appState: AppState?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        appState?.initialize()
+        // First permission check — deferred so menu bar icon appears first,
+        // and runs on a background thread so it never blocks the UI.
+        schedulePermissionRefresh(delay: 1.0)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // Re-check when user returns (e.g. after granting in System Settings).
+        schedulePermissionRefresh(delay: 0.5)
+    }
+
+    private func schedulePermissionRefresh(delay: Double) {
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.appState?.refreshPermissionsInBackground()
+        }
+    }
+}
+
+// MARK: - App
+
 @main
 struct AirTouchApp: App {
+    @NSApplicationDelegateAdaptor(AirTouchAppDelegate.self) var delegate
     @State private var appState = AppState()
 
     var body: some Scene {
@@ -9,6 +36,7 @@ struct AirTouchApp: App {
         MenuBarExtra {
             MenuBarView()
                 .environment(appState)
+                .onAppear { delegate.appState = appState }
         } label: {
             Image(systemName: appState.menuBarIconName)
         }
@@ -17,19 +45,9 @@ struct AirTouchApp: App {
         Window("AirTouch", id: "settings") {
             SettingsView()
                 .environment(appState)
-                .onAppear {
-                    NSApp.setActivationPolicy(.regular)
-                }
-                .onDisappear {
-                    // Return to accessory mode if no other windows are open
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if NSApp.windows.filter({ $0.isVisible && $0.title != "" }).isEmpty {
-                            NSApp.setActivationPolicy(.accessory)
-                        }
-                    }
-                }
         }
         .defaultSize(width: 750, height: 520)
+        .restorationBehavior(.disabled)
 
         // Camera preview window
         Window("Camera Preview", id: "camera-preview") {
@@ -37,7 +55,8 @@ struct AirTouchApp: App {
                 .environment(appState)
         }
         .windowStyle(.plain)
-        .defaultSize(width: 320, height: 260)
+        .defaultSize(width: 640, height: 514)
+        .restorationBehavior(.disabled)
 
         // Onboarding window
         Window("Welcome to AirTouch", id: "onboarding") {
@@ -46,12 +65,6 @@ struct AirTouchApp: App {
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 500, height: 400)
-    }
-
-    init() {
-        // Initialize on first launch
-        DispatchQueue.main.async {
-            self.appState.initialize()
-        }
+        .restorationBehavior(.disabled)
     }
 }

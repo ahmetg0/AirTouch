@@ -21,6 +21,7 @@ enum GestureEventType: Sendable {
     case dragEnd
     case perfectSignStart
     case perfectSignEnd
+    case openPalmRightClick
 }
 
 enum PinchFinger: String, Sendable, CaseIterable {
@@ -40,7 +41,7 @@ final class GestureRecognizer: @unchecked Sendable {
 
     // Settings
     var pinchThreshold: Double = 0.04
-    var dragHoldDuration: TimeInterval = 0.4
+    var dragHoldDuration: TimeInterval = 0.8
     var scrollSpeed: Double = 1.0
     var invertScroll: Bool = false
 
@@ -54,13 +55,20 @@ final class GestureRecognizer: @unchecked Sendable {
     private var prevPerfectScrollPos: LandmarkPoint?
     private var wasPerfectScrolling = false
 
+    // Open palm right-click state
+    private var openPalmStartTime: Date?
+    private var openPalmRightClickFired = false
+    private var lastOpenPalmRightClickTime: Date?
+    private let openPalmHoldDuration: TimeInterval = 1.0
+    private let openPalmCooldown: TimeInterval = 1.5
+
     // Debounce
     private var lastGestureTime: [PinchFinger: Date] = [:]
     private let pinchCooldown: TimeInterval = 0.3
     private let releaseThresholdMultiplier: Float = 1.5
 
     // Gesture mode — mutual exclusivity
-    private enum GestureMode: Equatable { case none, pointing, pinching, perfectSignScroll }
+    private enum GestureMode: Equatable { case none, pointing, pinching, perfectSignScroll, openPalmRightClick }
     private var currentGestureMode: GestureMode = .none
 
     // MARK: - Process Frame
@@ -93,10 +101,15 @@ final class GestureRecognizer: @unchecked Sendable {
             return dist < Float(pinchThreshold) * 2.0 && hand.isMiddleExtended && hand.isRingExtended && hand.isLittleExtended
         }()
 
-        // Determine gesture mode — priority: perfectSign > activePinch > pointing > none
+        // Open palm: all fingers extended (no pinch)
+        let isOpenPalm = hand.isOpenPalm && !isPerfectSign
+
+        // Determine gesture mode — priority: perfectSign > openPalm > activePinch > pointing > none
         let newMode: GestureMode
         if isPerfectSign {
             newMode = .perfectSignScroll
+        } else if isOpenPalm {
+            newMode = .openPalmRightClick
         } else if activePinch != nil {
             newMode = .pinching
         } else if isPointing {
@@ -122,7 +135,7 @@ final class GestureRecognizer: @unchecked Sendable {
             currentGestureMode = newMode
         }
 
-        // --- 1. Cursor movement — only in pointing or pinching mode ---
+        // --- 1. Cursor movement — only in pointing or pinching mode (frozen during scroll/palm) ---
         if (newMode == .pointing || newMode == .pinching), let indexTip = hand.indexTip {
             let cursorPoint = CGPoint(x: CGFloat(indexTip.x), y: CGFloat(indexTip.y))
             let isCurrentlyPinching = activePinch != nil
@@ -143,7 +156,15 @@ final class GestureRecognizer: @unchecked Sendable {
             detectDrag(events: &events)
         }
 
-        // --- 4. Perfect sign (👌) = continuous scroll ---
+        // --- 4. Open palm (hold 1s) = right click ---
+        if newMode == .openPalmRightClick {
+            detectOpenPalmRightClick(events: &events)
+        } else {
+            openPalmStartTime = nil
+            openPalmRightClickFired = false
+        }
+
+        // --- 5. Perfect sign (👌) = continuous scroll ---
         if newMode == .perfectSignScroll {
             if !wasPerfectScrolling {
                 prevPerfectScrollPos = nil
@@ -228,6 +249,28 @@ final class GestureRecognizer: @unchecked Sendable {
         }
     }
 
+    // MARK: - Open Palm Right Click
+
+    private func detectOpenPalmRightClick(events: inout [GestureEvent]) {
+        if openPalmStartTime == nil {
+            openPalmStartTime = Date()
+            openPalmRightClickFired = false
+            activeGestureName = "Open Palm…"
+        }
+
+        guard !openPalmRightClickFired, let startTime = openPalmStartTime else { return }
+
+        let holdDuration = Date().timeIntervalSince(startTime)
+        if holdDuration >= openPalmHoldDuration {
+            if let lastTime = lastOpenPalmRightClickTime,
+               Date().timeIntervalSince(lastTime) < openPalmCooldown { return }
+            openPalmRightClickFired = true
+            lastOpenPalmRightClickTime = Date()
+            activeGestureName = "Right Click"
+            events.append(GestureEvent(type: .openPalmRightClick, position: lastCursorPosition, delta: nil))
+        }
+    }
+
     // MARK: - Perfect Sign Scroll (👌)
 
     private func detectPerfectSignScroll(hand: HandData, events: inout [GestureEvent]) {
@@ -239,18 +282,18 @@ final class GestureRecognizer: @unchecked Sendable {
 
         let deltaY = middleTip.y - prev.y
         let deltaX = middleTip.x - prev.x
-        let minDelta: Float = 0.002
+        let minDelta: Float = 0.001
 
         if abs(deltaY) > minDelta {
             isScrolling = true
-            let scrollDelta = (invertScroll ? deltaY : -deltaY) * Float(scrollSpeed) * 150.0
+            let scrollDelta = (invertScroll ? deltaY : -deltaY) * Float(scrollSpeed) * 800.0
             events.append(GestureEvent(type: .scrollVertical, position: nil, delta: scrollDelta))
             activeGestureName = "Scroll"
         }
 
         if abs(deltaX) > minDelta {
             isScrolling = true
-            let scrollDelta = deltaX * Float(scrollSpeed) * 150.0
+            let scrollDelta = deltaX * Float(scrollSpeed) * 800.0
             events.append(GestureEvent(type: .scrollHorizontal, position: nil, delta: scrollDelta))
             activeGestureName = "Scroll"
         }
@@ -286,6 +329,8 @@ final class GestureRecognizer: @unchecked Sendable {
         }
         isScrolling = false
         pinchStates.removeAll()
+        openPalmStartTime = nil
+        openPalmRightClickFired = false
         activeGestureName = nil
     }
 
@@ -299,6 +344,8 @@ final class GestureRecognizer: @unchecked Sendable {
         lastGestureTime.removeAll()
         cursorFreezePosition = nil
         wasPerfectScrolling = false
+        openPalmStartTime = nil
+        openPalmRightClickFired = false
         currentGestureMode = .none
     }
 }

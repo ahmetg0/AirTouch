@@ -2,54 +2,45 @@ import SwiftUI
 
 struct CalibrationView: View {
     @Environment(AppState.self) private var appState
-    @State private var calibrationStep = 0
     @State private var capturedPoints: [CGPoint] = []
+    @State private var calibrationStep = 0
     @State private var isCalibrating = false
     @State private var calibrationComplete = false
-    @State private var statusMessage = ""
+    @State private var errorMessage: String?
 
-    private let targetPositions: [(String, CGPoint)] = [
-        ("Top-Left", CGPoint(x: 0.15, y: 0.15)),
-        ("Top-Right", CGPoint(x: 0.85, y: 0.15)),
-        ("Bottom-Right", CGPoint(x: 0.85, y: 0.85)),
-        ("Bottom-Left", CGPoint(x: 0.15, y: 0.85))
+    /// Target positions in top-left-origin fraction space (x right, y down).
+    /// These map to real screen corners so the homography covers the full display.
+    private let targets: [(name: String, fraction: CGPoint)] = [
+        ("Top-Left",     CGPoint(x: 0.05, y: 0.05)),
+        ("Top-Right",    CGPoint(x: 0.95, y: 0.05)),
+        ("Bottom-Right", CGPoint(x: 0.95, y: 0.95)),
+        ("Bottom-Left",  CGPoint(x: 0.05, y: 0.95))
     ]
 
     var body: some View {
         VStack(spacing: 20) {
-            if isCalibrating {
-                calibrationOverlay
-            } else {
-                calibrationInfo
-            }
-        }
-        .padding()
-    }
-
-    // MARK: - Info View
-
-    private var calibrationInfo: some View {
-        VStack(spacing: 16) {
             Image(systemName: "scope")
                 .font(.system(size: 48))
                 .foregroundStyle(.blue)
 
             Text("Screen Calibration")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.title2).fontWeight(.semibold)
 
-            Text("Calibration improves cursor accuracy by mapping your camera's view to your screen. You'll point at 4 targets on screen and press Capture to confirm each one.")
+            Text("Calibration maps your camera's hand position to screen coordinates, making the cursor accurate across the full display. The cursor is disabled during calibration so you can click freely.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: 400)
+                .frame(maxWidth: 420)
 
-            if appState.settings.calibrationData != nil {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Calibration data saved")
-                        .foregroundStyle(.secondary)
-                }
+            if calibrationComplete {
+                Label("Calibration saved", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if let error = errorMessage {
+                Label(error, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            } else if appState.settings.calibrationData != nil {
+                Label("Calibration data saved", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
             }
 
             HStack(spacing: 16) {
@@ -57,189 +48,118 @@ struct CalibrationView: View {
                     startCalibration()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!appState.cameraManager.isRunning)
+                .disabled(!appState.cameraManager.isRunning || isCalibrating)
 
                 if appState.settings.calibrationData != nil {
                     Button("Clear Calibration") {
                         appState.settings.calibrationData = nil
                         appState.cursorController.calibrationTransform = nil
+                        calibrationComplete = false
                     }
                 }
             }
 
             if !appState.cameraManager.isRunning {
-                Text("Start tracking first to enable calibration")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                Text("Start tracking first to enable calibration.")
+                    .font(.caption).foregroundStyle(.orange)
             }
+        }
+        .padding()
+        .onDisappear {
+            // Safety: always clean up if the view disappears mid-calibration
+            if isCalibrating { cancelCalibration() }
         }
     }
 
-    // MARK: - Calibration Overlay
-
-    private let cameraWidth: CGFloat = 480
-    private let cameraHeight: CGFloat = 360
-
-    private var calibrationOverlay: some View {
-        ZStack {
-            // Camera feed fills the calibration area
-            CameraFeedLayer(session: appState.cameraManager.currentSession)
-                .frame(width: cameraWidth, height: cameraHeight)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            // Hand landmarks
-            if let frame = appState.currentFrame {
-                LandmarkOverlay(frame: frame, size: CGSize(width: cameraWidth, height: cameraHeight))
-            }
-
-            if calibrationComplete {
-                // Completion overlay
-                VStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.green)
-                    Text("Calibration Complete!")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                    Text("Your cursor mapping has been updated.")
-                        .foregroundStyle(.white.opacity(0.8))
-                    Button("Done") {
-                        isCalibrating = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(24)
-                .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 16))
-            } else {
-                // Target crosshair on the camera feed
-                let target = targetPositions[calibrationStep]
-                Circle()
-                    .stroke(.red, lineWidth: 2)
-                    .frame(width: 30, height: 30)
-                    .overlay {
-                        Circle().fill(.red.opacity(0.4)).frame(width: 10, height: 10)
-                    }
-                    .position(
-                        x: target.1.x * cameraWidth,
-                        y: target.1.y * cameraHeight
-                    )
-
-                // Step info at top
-                VStack(spacing: 4) {
-                    Text("Point at: \(target.0)")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                    Text("Step \(calibrationStep + 1) of 4")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.black.opacity(0.6), in: Capsule())
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.top, 12)
-
-                // Status message
-                if !statusMessage.isEmpty {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.6), in: Capsule())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, 56)
-                }
-
-                // Buttons at bottom
-                HStack(spacing: 16) {
-                    Button("Cancel") {
-                        isCalibrating = false
-                        capturedPoints.removeAll()
-                        calibrationStep = 0
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-
-                    Button("Capture Point") {
-                        captureCurrentPoint()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(appState.currentFrame?.dominantHand?.indexTip == nil)
-                }
-                .padding(10)
-                .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 12)
-            }
-        }
-        .frame(width: cameraWidth, height: cameraHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: - Calibration Logic
+    // MARK: - Calibration Flow
 
     private func startCalibration() {
-        isCalibrating = true
-        calibrationComplete = false
-        calibrationStep = 0
         capturedPoints.removeAll()
-        statusMessage = "Point your index finger at the red target"
+        calibrationStep = 0
+        calibrationComplete = false
+        errorMessage = nil
+        isCalibrating = true
+        appState.isCalibrating = true  // suppress cursor movement
+        showOverlayForCurrentStep()
+    }
+
+    private func showOverlayForCurrentStep() {
+        guard calibrationStep < targets.count else { return }
+        let target = targets[calibrationStep]
+        CalibrationScreenOverlay.shared.show(
+            step: calibrationStep,
+            targetName: target.name,
+            targetFraction: target.fraction,
+            handsDetected: appState.handsDetected,
+            onCapture: captureCurrentPoint,
+            onCancel: cancelCalibration
+        )
     }
 
     private func captureCurrentPoint() {
-        guard let hand = appState.currentFrame?.dominantHand,
-              let indexTip = hand.indexTip else {
-            statusMessage = "No hand detected — show your hand to the camera"
-            return
-        }
+        guard let indexTip = appState.currentFrame?.dominantHand?.indexTip else { return }
 
-        let cameraPoint = CGPoint(x: CGFloat(indexTip.x), y: CGFloat(indexTip.y))
-        capturedPoints.append(cameraPoint)
+        // Vision coordinates: x left→right [0,1], y bottom→top [0,1]
+        let visionPoint = CGPoint(x: CGFloat(indexTip.x), y: CGFloat(indexTip.y))
+        capturedPoints.append(visionPoint)
         calibrationStep += 1
 
-        if calibrationStep >= 4 {
-            // Compute calibration transform
+        if calibrationStep >= targets.count {
+            CalibrationScreenOverlay.shared.hide()
             computeCalibration()
         } else {
-            statusMessage = "Point at the next target"
+            showOverlayForCurrentStep()
         }
     }
 
+    private func cancelCalibration() {
+        CalibrationScreenOverlay.shared.hide()
+        isCalibrating = false
+        appState.isCalibrating = false
+        capturedPoints.removeAll()
+        calibrationStep = 0
+    }
+
+    // MARK: - Compute Homography
+
     private func computeCalibration() {
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.frame
+        guard let screen = NSScreen.main else {
+            finishCalibration(success: false)
+            return
+        }
+        let W = screen.frame.width
+        let H = screen.frame.height
 
-        let screenTargets = targetPositions.map { target in
-            CGPoint(
-                x: target.1.x * screenFrame.width,
-                y: target.1.y * screenFrame.height
-            )
+        // Screen targets in CGEvent space (top-left origin, y down)
+        let screenTargets = targets.map { t in
+            CGPoint(x: t.fraction.x * W, y: t.fraction.y * H)
         }
 
-        // Flip Y on camera points (Vision bottom-left → screen top-left)
-        let flippedCameraPoints = capturedPoints.map { point in
-            CGPoint(x: point.x, y: 1.0 - point.y)
-        }
+        // Flip Vision Y so both spaces share top-left origin before solving
+        let flippedCamera = capturedPoints.map { CGPoint(x: $0.x, y: 1.0 - $0.y) }
 
-        if let transform = CalibrationTransform.compute(
-            from: flippedCameraPoints,
-            to: screenTargets
-        ) {
+        if let transform = CalibrationTransform.compute(from: flippedCamera, to: screenTargets) {
             appState.cursorController.calibrationTransform = transform
-
-            // Save calibration data
             appState.settings.calibrationData = CalibrationData(
                 cameraPoints: capturedPoints,
                 screenPoints: screenTargets,
                 matrix: transform.matrix
             )
-
-            calibrationComplete = true
-            statusMessage = ""
+            finishCalibration(success: true)
         } else {
-            statusMessage = "Calibration failed — try again with clearer hand position"
+            finishCalibration(success: false)
+        }
+    }
+
+    private func finishCalibration(success: Bool) {
+        isCalibrating = false
+        appState.isCalibrating = false
+        if success {
+            calibrationComplete = true
+            errorMessage = nil
+        } else {
+            calibrationComplete = false
+            errorMessage = "Calibration failed — points may be too close together. Try again."
             capturedPoints.removeAll()
             calibrationStep = 0
         }

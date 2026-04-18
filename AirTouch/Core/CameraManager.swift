@@ -15,7 +15,7 @@ final class CameraManager: NSObject, @unchecked Sendable {
 
     /// Callback invoked on the output queue for each frame.
     /// Set this before calling startSession().
-    nonisolated(unsafe) var onFrame: ((CMSampleBuffer) -> Void)?
+    var onFrame: ((CMSampleBuffer) -> Void)?
 
     // MARK: - Authorization
 

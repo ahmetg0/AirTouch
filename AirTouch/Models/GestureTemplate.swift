@@ -73,11 +73,9 @@ enum BuiltInGesture: String, CaseIterable, Sendable, Identifiable {
     case cursorMove = "Cursor Movement"
     case pinchIndex = "Pinch (Index)"
     case pinchMiddle = "Pinch (Middle)"
-    case pinchRing = "Pinch (Ring)"
-    case pinchLittle = "Pinch (Little)"
-    case scroll = "Scroll"
+    case scroll = "Scroll (👌)"
     case drag = "Drag"
-    case zoom = "Zoom"
+    case openPalmRightClick = "Open Palm Right-Click"
 
     var id: String { rawValue }
 
@@ -86,31 +84,33 @@ enum BuiltInGesture: String, CaseIterable, Sendable, Identifiable {
         case .cursorMove: return .none
         case .pinchIndex: return .leftClick
         case .pinchMiddle: return .rightClick
-        case .pinchRing: return .middleClick
-        case .pinchLittle: return .none
         case .scroll: return .none
         case .drag: return .none
-        case .zoom: return .none
+        case .openPalmRightClick: return .rightClick
         }
     }
 
     var description: String {
         switch self {
-        case .cursorMove: return "Index fingertip controls cursor position"
-        case .pinchIndex: return "Thumb + Index finger pinch"
-        case .pinchMiddle: return "Thumb + Middle finger pinch"
-        case .pinchRing: return "Thumb + Ring finger pinch"
-        case .pinchLittle: return "Thumb + Little finger pinch"
-        case .scroll: return "Open palm + vertical wrist movement"
-        case .drag: return "Index pinch hold + move"
-        case .zoom: return "Two hands, change distance between index tips"
+        case .cursorMove: return "Point with index finger to move the cursor"
+        case .pinchIndex: return "Pinch thumb + index → left click"
+        case .pinchMiddle: return "Pinch thumb + middle → right click"
+        case .scroll: return "👌 sign (thumb+index pinched, others extended) + move middle finger"
+        case .drag: return "Hold index pinch for 0.8s then move to drag"
+        case .openPalmRightClick: return "Hold open palm for 1 second → right click"
         }
     }
 
-    var isReassignable: Bool {
+    var icon: String {
         switch self {
-        case .cursorMove, .scroll, .drag, .zoom: return false
-        case .pinchIndex, .pinchMiddle, .pinchRing, .pinchLittle: return true
+        case .cursorMove: return "cursorarrow.rays"
+        case .pinchIndex: return "hand.pinch"
+        case .pinchMiddle: return "hand.pinch.fill"
+        case .scroll: return "scroll"
+        case .drag: return "hand.draw"
+        case .openPalmRightClick: return "hand.raised.fingers.spread"
         }
     }
+
+    var isReassignable: Bool { false }
 }

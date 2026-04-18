@@ -1,5 +1,4 @@
 import Foundation
-import Accelerate
 
 // MARK: - Calibration Transform
 
@@ -71,17 +70,8 @@ struct CalibrationTransform: Sendable {
             b[row2] = dy
         }
 
-        // Solve Ax = b using LAPACK
-        var n: __CLPACK_integer = 8
-        var nrhs: __CLPACK_integer = 1
-        var lda: __CLPACK_integer = 8
-        var ldb: __CLPACK_integer = 8
-        var ipiv = [__CLPACK_integer](repeating: 0, count: 8)
-        var info: __CLPACK_integer = 0
-
-        dgesv_(&n, &nrhs, &A, &lda, &ipiv, &b, &ldb, &info)
-
-        guard info == 0 else { return nil }
+        // Solve Ax = b using Gaussian elimination with partial pivoting
+        guard solveLinearSystem(A: &A, b: &b, n: 8) else { return nil }
 
         // b now contains the solution [h1..h8], h9 = 1
         let matrix = [b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], 1.0]
@@ -107,4 +97,56 @@ struct CalibrationTransform: Sendable {
             0,   0,   1
         ])
     }
+}
+
+// MARK: - Gaussian Elimination (replaces deprecated LAPACK dgesv_)
+
+/// Solves A·x = b in-place (result stored in b). A is row-major n×n.
+/// Returns false if the matrix is singular or poorly conditioned.
+private func solveLinearSystem(A: inout [Double], b: inout [Double], n: Int) -> Bool {
+    var pivot = Array(0..<n)   // row permutation
+
+    for col in 0..<n {
+        // Find pivot row (largest absolute value in this column)
+        var maxVal = 0.0
+        var maxRow = col
+        for row in col..<n {
+            let val = abs(A[pivot[row] * n + col])
+            if val > maxVal { maxVal = val; maxRow = row }
+        }
+        guard maxVal > 1e-12 else { return false }   // singular
+        pivot.swapAt(col, maxRow)
+
+        let p = pivot[col]
+        let diag = A[p * n + col]
+
+        // Eliminate rows below
+        for row in (col + 1)..<n {
+            let r = pivot[row]
+            let factor = A[r * n + col] / diag
+            guard factor.isFinite else { return false }
+            for k in col..<n {
+                A[r * n + k] -= factor * A[p * n + k]
+            }
+            b[r] -= factor * b[p]
+        }
+    }
+
+    // Back substitution
+    for row in stride(from: n - 1, through: 0, by: -1) {
+        let r = pivot[row]
+        var sum = b[r]
+        for k in (row + 1)..<n {
+            sum -= A[r * n + k] * b[pivot[k]]
+        }
+        let diag = A[r * n + row]
+        guard abs(diag) > 1e-12 else { return false }
+        b[r] = sum / diag
+    }
+
+    // Reorder b into natural order
+    var result = [Double](repeating: 0, count: n)
+    for i in 0..<n { result[i] = b[pivot[i]] }
+    b = result
+    return true
 }

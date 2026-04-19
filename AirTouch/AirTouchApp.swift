@@ -1,26 +1,40 @@
 import SwiftUI
+import AVFoundation
 
 // MARK: - App Delegate
 
 final class AirTouchAppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState?
+    var permissionTimer: DispatchSourceTimer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState?.initialize()
-        // First permission check — deferred so menu bar icon appears first,
-        // and runs on a background thread so it never blocks the UI.
-        schedulePermissionRefresh(delay: 1.0)
+        startPermissionPolling()
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {
-        // Re-check when user returns (e.g. after granting in System Settings).
-        schedulePermissionRefresh(delay: 0.5)
+    func applicationWillTerminate(_ notification: Notification) {
+        stopPermissionPolling()
     }
 
-    private func schedulePermissionRefresh(delay: Double) {
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.appState?.refreshPermissionsInBackground()
+    func startPermissionPolling() {
+        guard permissionTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 1, repeating: 3)
+        timer.setEventHandler { [weak self] in
+            guard let pm = self?.appState?.permissionManager else { return }
+            // Skip polling while tracking — permissions are already known
+            // and AXIsProcessTrusted() can block during camera I/O.
+            guard self?.appState?.isTracking != true else { return }
+            pm.cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+            pm.accessibilityGranted = AXIsProcessTrusted()
         }
+        timer.resume()
+        permissionTimer = timer
+    }
+
+    func stopPermissionPolling() {
+        permissionTimer?.cancel()
+        permissionTimer = nil
     }
 }
 
@@ -32,7 +46,6 @@ struct AirTouchApp: App {
     @State private var appState = AppState()
 
     var body: some Scene {
-        // Menu bar icon with pull-down menu
         MenuBarExtra {
             MenuBarView()
                 .environment(appState)
@@ -41,7 +54,6 @@ struct AirTouchApp: App {
             Image(systemName: appState.menuBarIconName)
         }
 
-        // Main settings window
         Window("AirTouch", id: "settings") {
             SettingsView()
                 .environment(appState)
@@ -49,7 +61,6 @@ struct AirTouchApp: App {
         .defaultSize(width: 750, height: 520)
         .restorationBehavior(.disabled)
 
-        // Camera preview window
         Window("Camera Preview", id: "camera-preview") {
             CameraPreviewView()
                 .environment(appState)
@@ -58,7 +69,6 @@ struct AirTouchApp: App {
         .defaultSize(width: 640, height: 514)
         .restorationBehavior(.disabled)
 
-        // Onboarding window
         Window("Welcome to AirTouch", id: "onboarding") {
             OnboardingView()
                 .environment(appState)

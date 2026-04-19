@@ -20,9 +20,11 @@ final class PermissionManager: @unchecked Sendable {
 
     // MARK: - Accessibility
 
-    /// Prompt macOS to show the accessibility / event-posting trust dialog.
+    /// Prompt macOS to show the accessibility trust dialog and add AirTouch
+    /// to the Accessibility list in System Settings.
     func promptAccessibility() {
-        CGRequestPostEventAccess()
+        let opts: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true]
+        _ = AXIsProcessTrustedWithOptions(opts)
     }
 
     func openAccessibilitySettings() {

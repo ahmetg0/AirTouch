@@ -160,13 +160,13 @@ struct OnboardingView: View {
 
             if !appState.permissionManager.accessibilityGranted {
                 VStack(spacing: 12) {
-                    Button("Grant Accessibility Access") {
+                    Button("Open Accessibility Settings") {
                         appState.permissionManager.promptAccessibility()
                         appState.permissionManager.openAccessibilitySettings()
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Text("System Settings will open. Click + to add AirTouch, or find it in the list and enable it.")
+                    Text("Find AirTouch in the list and toggle it on. The status above will update automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

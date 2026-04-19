@@ -27,6 +27,10 @@ final class AppState {
     /// keeps running so `currentFrame` is still updated (needed for calibration).
     var isCalibrating = false
 
+    /// When true, cursor/gesture events are suppressed but the camera+vision
+    /// pipeline keeps running so the preview displays live landmarks.
+    var isCameraPreviewOpen = false
+
     // Pipeline tasks
     private var fpsCounterTask: Task<Void, Never>?
     private var frameCount = 0
@@ -63,19 +67,6 @@ final class AppState {
             cursorController.calibrationTransform = CalibrationTransform(matrix: calibData.matrix)
         }
         syncSettings()
-    }
-
-    /// Called from a background thread by the app delegate. Checks permissions
-    /// off the main thread, then hops to main to update the @Observable properties.
-    /// Uses CGPreflightPostEventAccess instead of AXIsProcessTrusted to avoid
-    /// Mach port exceptions on macOS 26.
-    nonisolated func refreshPermissionsInBackground() {
-        let cam = AVCaptureDevice.authorizationStatus(for: .video)
-        let ax = CGPreflightPostEventAccess()
-        DispatchQueue.main.async { [self] in
-            permissionManager.cameraStatus = cam
-            permissionManager.accessibilityGranted = ax
-        }
     }
 
     // MARK: - Toggle Tracking
@@ -134,24 +125,28 @@ final class AppState {
                 DispatchQueue.main.async {
                     defer { processingFlag.clear() }
 
-                    guard let self = weakSelf, self.isTracking else { return }
+                    // Bridge GCD main queue → MainActor isolation so the
+                    // runtime doesn't trap on @MainActor property access.
+                    MainActor.assumeIsolated {
+                        guard let appState = weakSelf, appState.isTracking else { return }
 
-                    if let latestFrame = frameBox.load() {
-                        self.frameCount += 1
-                        self.handsDetected = latestFrame.hands.count
-                        self.currentFrame = latestFrame
+                        if let latestFrame = frameBox.load() {
+                            appState.frameCount += 1
+                            appState.handsDetected = latestFrame.hands.count
+                            appState.currentFrame = latestFrame
 
-                        // Skip gesture recognition during calibration
-                        guard !self.isCalibrating else { return }
+                            // Skip gesture recognition during calibration or preview
+                            guard !appState.isCalibrating && !appState.isCameraPreviewOpen else { return }
 
-                        let events = self.gestureRecognizer.processFrame(latestFrame, settings: self.settings)
+                            let events = appState.gestureRecognizer.processFrame(latestFrame, settings: appState.settings)
 
-                        for event in events {
-                            self.handleGestureEvent(event)
+                            for event in events {
+                                appState.handleGestureEvent(event)
+                            }
+                        } else {
+                            appState.handsDetected = 0
+                            appState.currentFrame = nil
                         }
-                    } else {
-                        self.handsDetected = 0
-                        self.currentFrame = nil
                     }
                 }
             }
@@ -270,19 +265,26 @@ nonisolated final class LatestFrameBox: @unchecked Sendable {
 
 // MARK: - Atomic Flag
 
-/// Lock-free boolean flag for cross-queue "is main thread still processing?" checks.
+/// Thread-safe boolean flag for cross-queue "is main thread still processing?" checks.
 /// Prevents gesture event stacking when frame processing can't keep up.
 nonisolated final class AtomicFlag: @unchecked Sendable {
     private var _value: Int32 = 0
+    private var _lock = os_unfair_lock()
 
     /// Attempt to set the flag. Returns true if it was previously clear (i.e. we "won").
     /// Returns false if already set (main thread is still busy — drop this frame).
     func testAndSet() -> Bool {
-        OSAtomicCompareAndSwap32(0, 1, &_value)
+        os_unfair_lock_lock(&_lock)
+        let wasZero = _value == 0
+        if wasZero { _value = 1 }
+        os_unfair_lock_unlock(&_lock)
+        return wasZero
     }
 
     /// Clear the flag (main thread is done processing).
     func clear() {
-        OSAtomicCompareAndSwap32(1, 0, &_value)
+        os_unfair_lock_lock(&_lock)
+        _value = 0
+        os_unfair_lock_unlock(&_lock)
     }
 }

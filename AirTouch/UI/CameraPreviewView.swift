@@ -83,5 +83,7 @@ struct CameraPreviewView: View {
             .frame(width: previewWidth, height: previewHeight)
         }
         .background(.black)
+        .onAppear { appState.isCameraPreviewOpen = true }
+        .onDisappear { appState.isCameraPreviewOpen = false }
     }
 }

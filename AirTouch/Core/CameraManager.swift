@@ -127,6 +127,16 @@ final class CameraManager: NSObject, @unchecked Sendable {
 
     /// The current capture session, exposed for preview layer
     var currentSession: AVCaptureSession? { captureSession }
+
+    /// Actual video capture dimensions (may differ from session preset on some hardware)
+    var videoDimensions: CGSize {
+        guard let session = captureSession,
+              let input = session.inputs.first as? AVCaptureDeviceInput else {
+            return CGSize(width: 640, height: 480)
+        }
+        let dims = CMVideoFormatDescriptionGetDimensions(input.device.activeFormat.formatDescription)
+        return CGSize(width: CGFloat(dims.width), height: CGFloat(dims.height))
+    }
 }
 
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate

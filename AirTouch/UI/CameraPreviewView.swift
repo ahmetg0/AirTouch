@@ -31,7 +31,11 @@ struct CameraPreviewView: View {
                         .frame(width: previewWidth, height: previewHeight)
 
                     if let frame = appState.currentFrame {
-                        LandmarkOverlay(frame: frame, size: CGSize(width: previewWidth, height: previewHeight))
+                        LandmarkOverlay(
+                            frame: frame,
+                            size: CGSize(width: previewWidth, height: previewHeight),
+                            videoDimensions: appState.cameraManager.videoDimensions
+                        )
                     }
                 } else {
                     Rectangle()

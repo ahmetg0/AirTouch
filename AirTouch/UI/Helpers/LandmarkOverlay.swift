@@ -6,6 +6,9 @@ import SwiftUI
 struct LandmarkOverlay: View {
     let frame: HandFrame
     let size: CGSize
+    /// Actual video capture dimensions — needed to compute the correct mapping
+    /// for the preview layer's `resizeAspectFill` gravity.
+    var videoDimensions: CGSize = CGSize(width: 640, height: 480)
 
     var body: some View {
         Canvas { context, canvasSize in
@@ -95,14 +98,39 @@ struct LandmarkOverlay: View {
 
     // MARK: - Coordinate Conversion
 
-    /// Convert normalized Vision coordinates to screen coordinates for the overlay
-    /// Vision: (0,0) bottom-left to (1,1) top-right
-    /// Screen: (0,0) top-left to (width,height) bottom-right
-    /// Camera is already mirrored by CameraManager/PreviewLayer
+    /// Convert normalized Vision coordinates to screen coordinates for the overlay.
+    ///
+    /// The preview layer uses `resizeAspectFill`, which scales the video uniformly
+    /// to fill the view and crops any overflow. When the video aspect ratio differs
+    /// from the view (e.g. 16:9 camera in a 4:3 view), a naive `x * width` mapping
+    /// drifts at edges because the visible video is a cropped subset of [0,1].
+    ///
+    /// This method computes the full display rect (potentially larger than the view)
+    /// and maps landmarks into it, so the overlay aligns with the cropped preview.
     private func convertToScreen(_ point: LandmarkPoint, in size: CGSize) -> CGPoint {
-        CGPoint(
-            x: CGFloat(point.x) * size.width,
-            y: (1.0 - CGFloat(point.y)) * size.height
+        let videoAspect = videoDimensions.width / videoDimensions.height
+        let viewAspect  = size.width / size.height
+
+        let displayWidth: CGFloat
+        let displayHeight: CGFloat
+
+        if videoAspect > viewAspect {
+            // Video wider than view → scale to fill height, sides are cropped
+            displayHeight = size.height
+            displayWidth  = size.height * videoAspect
+        } else {
+            // Video taller than view → scale to fill width, top/bottom cropped
+            displayWidth  = size.width
+            displayHeight = size.width / videoAspect
+        }
+
+        // Offset centers the (possibly oversized) display rect in the view
+        let offsetX = (size.width  - displayWidth)  / 2
+        let offsetY = (size.height - displayHeight) / 2
+
+        return CGPoint(
+            x: offsetX + CGFloat(point.x) * displayWidth,
+            y: offsetY + (1.0 - CGFloat(point.y)) * displayHeight
         )
     }
 }

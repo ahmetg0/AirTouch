@@ -102,6 +102,7 @@ final class AppState {
         let frameBox = LatestFrameBox()
         weak let weakSelf = self
         let engine = HandTrackingEngine()
+        let smoother = LandmarkSmoother(minCutoff: settings.smoothingMinCutoff, beta: settings.smoothingBeta)
 
         // Flag to prevent stacking: when true, a main-thread dispatch is already
         // queued and hasn't started processing yet — skip further dispatches.
@@ -113,8 +114,10 @@ final class AppState {
                 let frame = engine.processFrame(sampleBuffer, timestamp: timestamp)
 
                 if let frame {
-                    frameBox.store(frame)
+                    let smoothed = smoother.smoothFrame(frame)
+                    frameBox.store(smoothed)
                 } else {
+                    smoother.reset()
                     frameBox.clear()
                 }
 

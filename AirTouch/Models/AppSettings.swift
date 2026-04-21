@@ -23,12 +23,12 @@ final class AppSettings {
 
     // MARK: Smoothing
     var smoothingMinCutoff: Double {
-        get { UserDefaults.standard.double(forKey: "smoothingMinCutoff").clamped(to: 0.01...10.0, default: 1.0) }
+        get { UserDefaults.standard.double(forKey: "smoothingMinCutoff").clamped(to: 0.01...20.0, default: 5.0) }
         set { UserDefaults.standard.set(newValue, forKey: "smoothingMinCutoff") }
     }
 
     var smoothingBeta: Double {
-        get { UserDefaults.standard.double(forKey: "smoothingBeta").clamped(to: 0.0...1.0, default: 0.1) }
+        get { UserDefaults.standard.double(forKey: "smoothingBeta").clamped(to: 0.0...2.0, default: 0.7) }
         set { UserDefaults.standard.set(newValue, forKey: "smoothingBeta") }
     }
 

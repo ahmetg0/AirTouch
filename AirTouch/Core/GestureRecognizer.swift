@@ -65,7 +65,7 @@ final class GestureRecognizer: @unchecked Sendable {
     // Debounce
     private var lastGestureTime: [PinchFinger: Date] = [:]
     private let pinchCooldown: TimeInterval = 0.3
-    private let releaseThresholdMultiplier: Float = 1.5
+    private let releaseThresholdMultiplier: Float = 2.5
 
     // Gesture mode — mutual exclusivity
     private enum GestureMode: Equatable { case none, pointing, pinching, perfectSignScroll, openPalmRightClick }
@@ -91,8 +91,9 @@ final class GestureRecognizer: @unchecked Sendable {
             return events
         }
 
-        // Detect hand poses
-        let isPointing = hand.isIndexExtended && hand.isMiddleCurled && hand.isRingCurled && hand.isLittleCurled
+        // Detect hand poses — only require index extended (not strict pointing)
+        // so pinch detection works regardless of other finger states
+        let isPointing = hand.isIndexExtended
 
         // Perfect sign (👌): thumb + index pinch with middle, ring, little all extended
         let isPerfectSign: Bool = {
@@ -121,7 +122,7 @@ final class GestureRecognizer: @unchecked Sendable {
         let modeChanged = newMode != currentGestureMode
         if modeChanged {
             // Clean up previous mode's state
-            if currentGestureMode == .pinching && newMode != .pinching && newMode != .pointing {
+            if currentGestureMode == .pinching && newMode != .pinching {
                 if let finger = activePinch {
                     events.append(GestureEvent(type: .pinchEnd(finger), position: lastCursorPosition, delta: nil))
                     activePinch = nil
@@ -201,17 +202,17 @@ final class GestureRecognizer: @unchecked Sendable {
             let threshold = Float(pinchThreshold)
             let state = pinchStates[finger] ?? PinchState()
 
-            if distance < threshold {
+            if distance < threshold * 1.5 {
                 let newCount = state.consecutiveFrames + 1
                 let alreadyConfirmed = state.isPinched
-                let nowConfirmed = alreadyConfirmed || newCount >= 2
+                let nowConfirmed = alreadyConfirmed || newCount >= 1
                 pinchStates[finger] = PinchState(
                     isPinched: nowConfirmed,
                     consecutiveFrames: newCount,
                     startTime: state.startTime ?? Date()
                 )
 
-                if newCount >= 2 && !alreadyConfirmed {
+                if newCount >= 1 && !alreadyConfirmed {
                     if let lastTime = lastGestureTime[finger],
                        Date().timeIntervalSince(lastTime) < pinchCooldown {
                         continue
@@ -221,6 +222,10 @@ final class GestureRecognizer: @unchecked Sendable {
                 }
             } else if distance > threshold * releaseThresholdMultiplier {
                 if state.isPinched {
+                    if isDragging && finger == .index {
+                        isDragging = false
+                        events.append(GestureEvent(type: .dragEnd, position: lastCursorPosition, delta: nil))
+                    }
                     events.append(GestureEvent(type: .pinchEnd(finger), position: lastCursorPosition, delta: nil))
                     lastGestureTime[finger] = Date()
                     if activePinch == finger { activePinch = nil }

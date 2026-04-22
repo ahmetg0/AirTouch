@@ -10,11 +10,6 @@ struct SettingsView: View {
                     .environment(appState)
             }
 
-            Tab("Controls", systemImage: "slider.horizontal.3") {
-                ControlsSettingsView()
-                    .environment(appState)
-            }
-
             Tab("Calibration", systemImage: "scope") {
                 CalibrationView()
                     .environment(appState)

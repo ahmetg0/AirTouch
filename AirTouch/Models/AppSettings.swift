@@ -48,7 +48,7 @@ final class AppSettings {
 
     // MARK: Drag
     var dragHoldDuration: Double {
-        get { UserDefaults.standard.double(forKey: "dragHoldDuration").clamped(to: 0.1...2.0, default: 0.8) }
+        get { UserDefaults.standard.double(forKey: "dragHoldDuration").clamped(to: 0.5...3.0, default: 1.2) }
         set { UserDefaults.standard.set(newValue, forKey: "dragHoldDuration") }
     }
 

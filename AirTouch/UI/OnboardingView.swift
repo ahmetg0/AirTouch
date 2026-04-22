@@ -84,7 +84,7 @@ struct OnboardingView: View {
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Control your Mac with hand gestures using your camera. Move the cursor with your index finger and click by pinching.")
+            Text("Control your Mac with hand gestures using your camera. Point with your index finger to move the cursor and pinch to interact.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 350)
@@ -226,37 +226,37 @@ struct OnboardingView: View {
                     GestureReferenceRow(
                         icon: "cursorarrow.rays",
                         title: "Cursor",
-                        detail: "Extend only your index finger. The cursor follows your fingertip. Other fingers must be curled."
+                        detail: "Extend your index finger to move the cursor. It follows your fingertip position."
                     )
                     Divider().padding(.vertical, 8)
                     GestureReferenceRow(
                         icon: "hand.pinch",
                         title: "Left Click",
-                        detail: "Pinch thumb + index finger together. Release to click. Cursor freezes near the click point."
+                        detail: "Quickly pinch thumb + index finger together and release. The cursor freezes at the click point."
                     )
                     Divider().padding(.vertical, 8)
                     GestureReferenceRow(
                         icon: "hand.pinch.fill",
                         title: "Right Click (pinch)",
-                        detail: "Pinch thumb + middle finger together. Index should remain curled."
+                        detail: "Pinch thumb + middle finger together and release."
                     )
                     Divider().padding(.vertical, 8)
                     GestureReferenceRow(
                         icon: "hand.raised.fingers.spread",
                         title: "Right Click (palm)",
-                        detail: "Open all five fingers fully and hold for 1 second. Cursor stays frozen during the hold."
+                        detail: "Open all five fingers fully and hold for 1 second."
                     )
                     Divider().padding(.vertical, 8)
                     GestureReferenceRow(
                         icon: "scroll",
                         title: "Scroll",
-                        detail: "Make a 👌 sign (pinch thumb + index, keep middle/ring/little extended). Move your middle fingertip up/down to scroll. Cursor does not move."
+                        detail: "Make a 👌 sign (pinch thumb + index, extend other fingers). Move your middle finger up/down to scroll."
                     )
                     Divider().padding(.vertical, 8)
                     GestureReferenceRow(
                         icon: "hand.draw",
                         title: "Drag",
-                        detail: "Pinch thumb + index and hold for 0.8s without releasing. Then move your hand to drag. Release pinch to drop."
+                        detail: "Pinch thumb + index and hold for over 1 second. Move your hand to drag, release pinch to drop."
                     )
                 }
                 .padding()

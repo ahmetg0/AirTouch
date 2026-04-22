@@ -29,6 +29,7 @@ struct MenuBarView: View {
         // Settings
         Button {
             openWindow(id: "settings")
+            NSApp.activate()
         } label: {
             HStack {
                 Image(systemName: "gear")
@@ -40,6 +41,7 @@ struct MenuBarView: View {
         // Camera Preview
         Button {
             openWindow(id: "camera-preview")
+            NSApp.activate()
         } label: {
             HStack {
                 Image(systemName: "camera.viewfinder")
@@ -53,6 +55,7 @@ struct MenuBarView: View {
         if !appState.permissionManager.allPermissionsGranted {
             Button {
                 openWindow(id: "onboarding")
+                NSApp.activate()
             } label: {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")

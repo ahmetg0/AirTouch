@@ -72,7 +72,6 @@ enum GestureType: String, Codable, Sendable, CaseIterable {
 enum BuiltInGesture: String, CaseIterable, Sendable, Identifiable {
     case cursorMove = "Cursor Movement"
     case pinchIndex = "Pinch (Index)"
-    case pinchMiddle = "Pinch (Middle)"
     case scroll = "Scroll (👌)"
     case drag = "Drag"
     case openPalmRightClick = "Open Palm Right-Click"
@@ -83,7 +82,6 @@ enum BuiltInGesture: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .cursorMove: return .none
         case .pinchIndex: return .leftClick
-        case .pinchMiddle: return .rightClick
         case .scroll: return .none
         case .drag: return .none
         case .openPalmRightClick: return .rightClick
@@ -93,10 +91,9 @@ enum BuiltInGesture: String, CaseIterable, Sendable, Identifiable {
     var description: String {
         switch self {
         case .cursorMove: return "Point with index finger to move the cursor"
-        case .pinchIndex: return "Pinch thumb + index → left click"
-        case .pinchMiddle: return "Pinch thumb + middle → right click"
+        case .pinchIndex: return "Quick pinch thumb + index → left click"
         case .scroll: return "👌 sign (thumb+index pinched, others extended) + move middle finger"
-        case .drag: return "Hold index pinch for 0.8s then move to drag"
+        case .drag: return "Hold index pinch for 1+ second then move to drag"
         case .openPalmRightClick: return "Hold open palm for 1 second → right click"
         }
     }
@@ -105,7 +102,6 @@ enum BuiltInGesture: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .cursorMove: return "cursorarrow.rays"
         case .pinchIndex: return "hand.pinch"
-        case .pinchMiddle: return "hand.pinch.fill"
         case .scroll: return "scroll"
         case .drag: return "hand.draw"
         case .openPalmRightClick: return "hand.raised.fingers.spread"

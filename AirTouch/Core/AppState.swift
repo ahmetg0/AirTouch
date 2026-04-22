@@ -138,10 +138,14 @@ final class AppState {
                             appState.handsDetected = latestFrame.hands.count
                             appState.currentFrame = latestFrame
 
-                            // Skip gesture recognition during calibration or preview
-                            guard !appState.isCalibrating && !appState.isCameraPreviewOpen else { return }
+                            // Skip gesture recognition during calibration
+                            guard !appState.isCalibrating else { return }
 
                             let events = appState.gestureRecognizer.processFrame(latestFrame, settings: appState.settings)
+
+                            // During camera preview, recognize gestures (for the label)
+                            // but don't dispatch cursor/click events
+                            guard !appState.isCameraPreviewOpen else { return }
 
                             for event in events {
                                 appState.handleGestureEvent(event)
@@ -226,7 +230,6 @@ final class AppState {
     private func actionForPinch(_ finger: PinchFinger) -> GestureAction {
         switch finger {
         case .index: return .leftClick
-        case .middle: return .rightClick
         }
     }
 

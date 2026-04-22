@@ -21,5 +21,12 @@ struct SettingsView: View {
             }
         }
         .frame(minWidth: 650, minHeight: 450)
+        .onAppear {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate()
+        }
+        .onDisappear {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }

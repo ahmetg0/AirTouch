@@ -26,7 +26,6 @@ enum GestureEventType: Sendable {
 
 enum PinchFinger: String, Sendable, CaseIterable {
     case index
-    case middle
 }
 
 // MARK: - Gesture Recognizer
@@ -147,7 +146,7 @@ final class GestureRecognizer: @unchecked Sendable {
             lastCursorPosition = position
         }
 
-        // --- 2. Pinch detection (index + middle only) — only in pointing or pinching mode ---
+        // --- 2. Pinch detection (index only) — only in pointing or pinching mode ---
         if newMode == .pointing || newMode == .pinching {
             detectPinches(hand: hand, events: &events)
         }
@@ -191,8 +190,7 @@ final class GestureRecognizer: @unchecked Sendable {
         guard let thumbTip = hand.thumbTip else { return }
 
         let fingerTips: [(PinchFinger, LandmarkPoint?)] = [
-            (.index, hand.indexTip),
-            (.middle, hand.middleTip)
+            (.index, hand.indexTip)
         ]
 
         for (finger, tip) in fingerTips {

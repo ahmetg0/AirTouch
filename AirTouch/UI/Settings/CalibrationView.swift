@@ -8,8 +8,8 @@ struct CalibrationView: View {
     @State private var calibrationComplete = false
     @State private var errorMessage: String?
 
-    private let previewWidth: CGFloat = 480
-    private let previewHeight: CGFloat = 360
+    private let previewWidth: CGFloat = 420
+    private let previewHeight: CGFloat = 315
 
     /// How far inward the corner dots sit (fraction of preview size).
     /// 15 % gives comfortable reach without pushing to the camera edge.

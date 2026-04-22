@@ -236,14 +236,8 @@ struct OnboardingView: View {
                     )
                     Divider().padding(.vertical, 8)
                     GestureReferenceRow(
-                        icon: "hand.pinch.fill",
-                        title: "Right Click (pinch)",
-                        detail: "Pinch thumb + middle finger together and release."
-                    )
-                    Divider().padding(.vertical, 8)
-                    GestureReferenceRow(
                         icon: "hand.raised.fingers.spread",
-                        title: "Right Click (palm)",
+                        title: "Right Click",
                         detail: "Open all five fingers fully and hold for 1 second."
                     )
                     Divider().padding(.vertical, 8)

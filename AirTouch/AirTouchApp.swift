@@ -65,8 +65,7 @@ struct AirTouchApp: App {
             CameraPreviewView()
                 .environment(appState)
         }
-        .windowStyle(.plain)
-        .defaultSize(width: 640, height: 514)
+        .defaultSize(width: 640, height: 480)
         .restorationBehavior(.disabled)
 
         Window("Welcome to AirTouch", id: "onboarding") {
